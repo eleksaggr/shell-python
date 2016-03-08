@@ -2,34 +2,10 @@ import curses
 from curses import cbreak, echo, endwin, initscr, nocbreak, noecho
 import logging
 from os import environ
-from subprocess import check_output, CalledProcessError
+from subprocess import check_output, CalledProcessError, Popen, PIPE
 from time import sleep
 from threading import Thread
 from queue import Queue
-
-
-class Job(Thread):
-    __nextId = 0
-
-    def __init__(self, shell, command):
-        super(Job, self).__init__()
-        self.id = Job.__nextId
-        Job.__nextId += 1
-
-        self.__shell = shell
-        self.__command = command
-        self.result = ""
-
-    def run(self):
-        try:
-            self.result = check_output(self.__shell.history.last().split())
-            logging.info("Job {0} has ended.".format(self.id))
-            self.__shell.writer.add(self.result.decode("utf-8"))
-        except FileNotFoundError as e:
-            self.__shell.writer.add("{0}\n".format(str(e)))
-        except CalledProcessError as e:
-            self.__shell.writer.add("{0}\n".format(str(e)))
-
 
 class History:
 
@@ -91,7 +67,11 @@ class Shell:
         self.history = History()
 
     def __initLogging(self):
-        logging.basicConfig(filename="debug.log", level=logging.DEBUG)
+        with open("debug.log", "w"):
+            pass
+
+        logging.basicConfig(filename="debug.log",
+                            level=logging.DEBUG)
 
     def __initWindow(self):
         self.__window = initscr()
@@ -109,6 +89,7 @@ class Shell:
         nocbreak()
         self.__window.keypad(False)
         echo()
+        endwin()
 
     def run(self):
         try:
@@ -144,20 +125,29 @@ class Shell:
         self.history.add(command.strip())
 
     def __execute(self):
-        # TODO: Check whether to execute in background.
+        # # TODO: Check whether to execute in background.
+        # command = self.history.last()
+        # executeBackground = False
+        # if command.split()[-1] == "&":
+        #     command = command.split()[0:-1]
+        #     executeBackground = True
+        #
+        # self.__jobs.append(Job(self, command))
+        # self.__jobs[-1].start()
+        #
+        # if not executeBackground:
+        #     self.__jobs[-1].join()
+        # else:
+        #     logging.info(
+        #         "Started job {0} in background...".format(self.jobs[-1].id))
         command = self.history.last()
-        executeBackground = False
-        if command.split()[-1] == "&":
-            executeBackground = True
-
-        self.__jobs.append(Job(self, command))
-        self.__jobs[-1].start()
-
-        if not executeBackground:
-            self.__jobs[-1].join()
-        else:
-            logging.info(
-                "Started job {0} in background...".format(self.jobs[-1].id))
+        logging.info("Executing: {0}".format(command))
+        try:
+            with Popen(command.split(), stdout=PIPE) as process:
+                self.writer.add(process.stdout.read().decode("utf-8"))
+        except FileNotFoundError:
+            self.writer.add(
+                "Command not found: {0}\n".format(command.split()[0]))
 
     class Writer(Thread):
 
