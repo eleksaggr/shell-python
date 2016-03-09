@@ -7,6 +7,7 @@ from time import sleep
 from threading import Thread
 from queue import Queue
 
+
 class History:
 
     def __init__(self):
@@ -78,6 +79,8 @@ class Shell:
         noecho()
         cbreak()
         self.__window.keypad(True)
+        self.__window.scrollok(True)
+        self.__window.idlok(1)
 
     def __deinitWriter(self):
         logging.info("Stopping writer...")
@@ -114,6 +117,8 @@ class Shell:
                 if len(command.strip()) != 0:
                     command += "\n"
                     break
+                else:
+                    self.writer.add("\n")
             elif character == curses.KEY_BACKSPACE:
                 command = command[0:-1]
             else:
@@ -125,21 +130,6 @@ class Shell:
         self.history.add(command.strip())
 
     def __execute(self):
-        # # TODO: Check whether to execute in background.
-        # command = self.history.last()
-        # executeBackground = False
-        # if command.split()[-1] == "&":
-        #     command = command.split()[0:-1]
-        #     executeBackground = True
-        #
-        # self.__jobs.append(Job(self, command))
-        # self.__jobs[-1].start()
-        #
-        # if not executeBackground:
-        #     self.__jobs[-1].join()
-        # else:
-        #     logging.info(
-        #         "Started job {0} in background...".format(self.jobs[-1].id))
         command = self.history.last()
         logging.info("Executing: {0}".format(command))
         try:
@@ -201,12 +191,15 @@ class Shell:
             self.__stopCalled = True
 
         def __print(self, message):
-            # TODO: Add scrolling.
-
+            logging.info("Print called with: {0}".format(message))
+            height, _ = self.__window.getmaxyx()
             for character in message:
                 if character == "\n":
                     self.__cursor.reset()
-                    self.__cursor.down()
+                    if self.__cursor.y + 1 >= height:
+                        self.__window.scroll(1)
+                    else:
+                        self.__cursor.down()
                 elif character == "\r":
                     self.__cursor.reset()
                     self.__window.clrtoeol()
