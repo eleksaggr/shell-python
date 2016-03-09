@@ -36,6 +36,10 @@ class History:
         return None
 
 
+class ExitCalledException(Exception):
+    pass
+
+
 class Shell:
 
     def __init__(self):
@@ -138,14 +142,20 @@ class Shell:
         self.history.add(command.strip())
 
     def __execute(self):
-        command = self.history.last()
+        command = self.history.last().split()
         logging.info("Executing: {0}".format(command))
-        try:
-            with Popen(command.split(), stdout=PIPE) as process:
-                self.writer.add(process.stdout.read().decode("utf-8"))
-        except FileNotFoundError:
-            self.writer.add(
-                "Command not found: {0}\n".format(command.split()[0]))
+
+        if command[0] == "exit":
+            raise ExitCalledException("Exit called by user.")
+        else:
+            try:
+                with Popen(command, stdout=PIPE) as process:
+                    output = process.stdout.read().decode("utf-8")
+                    logging.info("Ouput: {0}".format(output))
+                    # self.writer.add(output)
+            except FileNotFoundError:
+                self.writer.add(
+                    "Command not found: {0}\n".format(command[0]))
 
     class Writer(Thread):
 
@@ -199,7 +209,8 @@ class Shell:
             self.__stopCalled = True
 
         def __print(self, message):
-            logging.info("Print called with: {0}".format(message))
+            logging.info("Print: {0}".format(
+                message.replace("\r", "").replace("\n", "")))
             height, _ = self.__window.getmaxyx()
             for character in message:
                 if character == "\n":
