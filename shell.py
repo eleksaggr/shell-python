@@ -149,13 +149,14 @@ class Shell:
             raise ExitCalledException("Exit called by user.")
         else:
             try:
-                with Popen(command, stdout=PIPE) as process:
-                    output = process.stdout.read().decode("utf-8")
-                    logging.info("Ouput: {0}".format(output))
-                    # self.writer.add(output)
+                pipe = Popen(command, stdout=PIPE)
+                output = pipe.communicate()[0]
+                self.writer.add(output.decode("utf-8"))
             except FileNotFoundError:
                 self.writer.add(
                     "Command not found: {0}\n".format(command[0]))
+            except KeyboardInterrupt:
+                pass
 
     class Writer(Thread):
 
@@ -209,8 +210,6 @@ class Shell:
             self.__stopCalled = True
 
         def __print(self, message):
-            logging.info("Print: {0}".format(
-                message.replace("\r", "").replace("\n", "")))
             height, _ = self.__window.getmaxyx()
             for character in message:
                 if character == "\n":
