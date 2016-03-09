@@ -1,7 +1,7 @@
 import curses
 from curses import cbreak, echo, endwin, initscr, nocbreak, noecho
 import logging
-from os import environ
+from os import chdir, environ, getcwd
 from subprocess import check_output, CalledProcessError, Popen, PIPE
 from time import sleep
 from threading import Thread
@@ -58,9 +58,7 @@ class Shell:
     def __initConfig(self):
         self.__config = {}
 
-        prompt = "{0} $".format(self.__environment["HOME"])
-        self.__config["PROMPT"] = prompt.replace(
-            self.__environment["HOME"], "~")
+        self.__resetPrompt()
 
     def __initEnvironment(self):
         self.__environment = {}
@@ -77,6 +75,11 @@ class Shell:
 
         logging.basicConfig(filename="debug.log",
                             level=logging.DEBUG)
+
+    def __resetPrompt(self):
+        prompt = "{0} $".format(self.__environment["PWD"])
+        self.__config["PROMPT"] = prompt.replace(
+            self.__environment["HOME"], "~")
 
     def __initWindow(self):
         self.__window = initscr()
@@ -115,29 +118,32 @@ class Shell:
         command = ""
 
         while True:
-            character = self.__window.getch()
+            # FIXME: KeyboardInterrupt results in chr() arg out of range?
+            try:
+                character = self.__window.getch()
 
-            if character == curses.KEY_ENTER or character == 10:
-                if len(command.strip()) != 0:
-                    command += "\n"
-                    break
+                if character == curses.KEY_ENTER or character == 10:
+                    if len(command.strip()) != 0:
+                        command += "\n"
+                        break
+                    else:
+                        self.writer.add("\n")
+                elif character == curses.KEY_BACKSPACE:
+                    command = command[0:-1]
+                elif character == curses.KEY_UP:
+                    temp = self.history.previous()
+                    if temp is not None:
+                        command = temp
+                elif character == curses.KEY_DOWN:
+                    temp = self.history.next()
+                    if temp is not None:
+                        command = temp
                 else:
-                    self.writer.add("\n")
-            elif character == curses.KEY_BACKSPACE:
-                command = command[0:-1]
-            elif character == curses.KEY_UP:
-                temp = self.history.previous()
-                if temp is not None:
-                    command = temp
-            elif character == curses.KEY_DOWN:
-                temp = self.history.next()
-                if temp is not None:
-                    command = temp
-            else:
-                command += chr(character)
-            self.writer.add("\r{0}{1}".format(
-                self.__config["PROMPT"], command))
-
+                    command += chr(character)
+                self.writer.add("\r{0}{1}".format(
+                    self.__config["PROMPT"], command))
+            except KeyboardInterrupt:
+                pass
         self.writer.add("\n")
         self.history.add(command.strip())
 
@@ -146,7 +152,12 @@ class Shell:
         logging.info("Executing: {0}".format(command))
 
         if command[0] == "exit":
-            raise ExitCalledException("Exit called by user.")
+            self.__exit()
+        elif command[0] == "cd":
+            if len(command) == 2:
+                self.__changeDir(command[1])
+            else:
+                self.writer.add("cd: Need directory as argument.\n")
         else:
             try:
                 pipe = Popen(command, stdout=PIPE)
@@ -157,6 +168,18 @@ class Shell:
                     "Command not found: {0}\n".format(command[0]))
             except KeyboardInterrupt:
                 pass
+
+    def __exit(self):
+        raise ExitCalledException("Exit called by user.")
+
+    def __changeDir(self, path):
+        try:
+            chdir(path)
+            self.__environment["PWD"] = getcwd()
+            self.__resetPrompt()
+        except OSError:
+            self.writer.add(
+                "cd: Invalid path. Did not change directory.\n")
 
     class Writer(Thread):
 
