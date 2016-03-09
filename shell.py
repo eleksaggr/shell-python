@@ -121,6 +121,14 @@ class Shell:
                     self.writer.add("\n")
             elif character == curses.KEY_BACKSPACE:
                 command = command[0:-1]
+            elif character == curses.KEY_UP:
+                temp = self.history.previous()
+                if temp is not None:
+                    command = temp
+            elif character == curses.KEY_DOWN:
+                temp = self.history.next()
+                if temp is not None:
+                    command = temp
             else:
                 command += chr(character)
             self.writer.add("\r{0}{1}".format(
@@ -202,6 +210,7 @@ class Shell:
                         self.__cursor.down()
                 elif character == "\r":
                     self.__cursor.reset()
+                    self.__window.move(self.__cursor.y, self.__cursor.x)
                     self.__window.clrtoeol()
                 else:
                     self.__window.addch(
