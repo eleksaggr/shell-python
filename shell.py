@@ -149,6 +149,7 @@ class Shell:
 
     def __execute(self):
         command = self.history.last().split()
+        command = self.__replaceEnvironmentVars(command)
         logging.info("Executing: {0}".format(command))
 
         if command[0] == "exit":
@@ -169,11 +170,23 @@ class Shell:
             except KeyboardInterrupt:
                 pass
 
+    def __replaceEnvironmentVars(self, command):
+        for i, t in enumerate(command):
+            if t.startswith("$"):
+                logging.info("Found env variable.")
+                value = self.__environment.get(t[1:len(t)])
+                logging.info("Value: {0}".format(value))
+                if value != None:
+                    logging.info("Replaced {0} with {1}.".format(t, value))
+                    command[i] = value
+        return command
+
     def __exit(self):
         raise ExitCalledException("Exit called by user.")
 
     def __changeDir(self, path):
         try:
+            path = path.replace("~", self.__environment["HOME"])
             chdir(path)
             self.__environment["PWD"] = getcwd()
             self.__resetPrompt()
